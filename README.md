@@ -18,8 +18,7 @@ Built for the Tericsoft DevOps internship task: provision a server, install Dock
 10. [Update and redeploy](#10-update-and-redeploy)
 11. [Troubleshooting](#11-troubleshooting)
 12. [Cost precautions and cleanup](#12-cost-precautions-and-cleanup)
-13. [Optional bonus: deploy on Amazon ECS](#13-optional-bonus-deploy-on-amazon-ecs-fargate)
-14. [Recording checklist](#14-recording-checklist)
+13. [Deploy on Amazon ECS](#13-optional-bonus-deploy-on-amazon-ecs-fargate)
 
 ### Placeholders used in this guide
 
@@ -518,7 +517,7 @@ Running AWS resources bills your account. Tericsoft isn't responsible for charge
 6. Use **EC2 Global View** (search for it in the console) to confirm no instances, volumes, or security groups remain in any region.
 7. Keep the GitHub repo public until the review is done. It costs nothing.
 
-## 13. Optional bonus: deploy on Amazon ECS (Fargate)
+## 13. Deploy on Amazon ECS (Fargate)
 
 > **Separate from the required EC2 deployment.** Finish and verify sections 9.1 to 9.8 first. Nothing here changes the EC2 setup.
 
@@ -628,16 +627,3 @@ If the task stops right away, open it and read **Stopped reason**:
 6. EC2, Security Groups, delete `deployflow-ecs-sg`.
 7. IAM: detach `deployflow-ec2-ecr` from the instance (or terminate the instance) and delete the role if you no longer need it.
 
-## 14. Recording checklist
-
-The task asks for one take with face and screen, explaining **why**, not reading a script. Make sure the recording visibly includes:
-
-* [ ] The EC2 instance in the console: type, AMI, and security group rules (22 from your IP, 8081 from anywhere)
-* [ ] Server specs from inside the instance: `nproc`, `free -h`, `df -h /`, and the instance type (section 9.5), plus why `t3.micro` is enough
-* [ ] Docker verified on the server: `docker info` and `hello-world`
-* [ ] `docker build` (note the `nginx -t` success lines) and `docker run -p 8081:8081`, and `docker ps` showing `(healthy)`
-* [ ] A browser opening `http://YOUR_PUBLIC_IP:8081` with the page loaded
-* [ ] Your public GitHub repo with the code and Dockerfile
-* [ ] (Bonus) The ECS console with the running service and the page opened via the task's public IP
-
-The submission also asks for a 5 to 6 line note on problems you hit and how you solved them. Write that from your own run; the troubleshooting table above is a good place to look for what to describe.
