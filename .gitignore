@@ -1,0 +1,20 @@
+# SSH keys and secrets: never commit these
+*.pem
+*.key
+.env
+.env.*
+
+# Archives
+*.zip
+
+# Editor and IDE settings
+.vscode/
+.idea/
+
+# Operating system files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log

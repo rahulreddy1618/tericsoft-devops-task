@@ -1,0 +1,896 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DeployFlow: containerized deployment on AWS EC2</title>
+  <meta name="description" content="DeployFlow is a static website packaged in an Nginx Docker container and deployed to AWS EC2, reachable on port 8081.">
+  <meta name="theme-color" content="#F2F4F3">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='3' y='9' width='26' height='15' rx='2' fill='%23F0B323'/%3E%3Cpath d='M9 12v9M14 12v9M19 12v9M24 12v9' stroke='%2318212B' stroke-width='1.6' opacity='.45'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,100..900&family=JetBrains+Mono:wght@400;500&display=swap">
+
+  <style>
+    :root {
+      --paper: #F2F4F3;
+      --surface: #FFFFFF;
+      --ink: #18212B;
+      --slate: #526070;
+      --rule: #D3D9DD;
+      --harbor: #0E5A73;
+      --harbor-deep: #0A4659;
+      --harbor-tint: #E3EEF1;
+      --signal: #F0B323;
+      --night: #17202A;
+      --night-raised: #212C38;
+      --night-rule: #34414F;
+      --night-text: #C9D2DB;
+
+      --font-sans: "Archivo", "Segoe UI", system-ui, -apple-system, Roboto, "Helvetica Neue", Arial, sans-serif;
+      --font-mono: "JetBrains Mono", ui-monospace, "Cascadia Code", Consolas, "SF Mono", Menlo, monospace;
+
+      --radius-sm: 4px;
+      --radius-md: 8px;
+      --wrap: 1120px;
+      --gutter: clamp(16px, 4vw, 32px);
+      --ease: cubic-bezier(.2, .7, .2, 1);
+    }
+
+    *, *::before, *::after { box-sizing: border-box; }
+
+    html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
+
+    body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: var(--font-sans);
+      font-size: 1.0625rem;
+      line-height: 1.6;
+      font-variation-settings: "wdth" 100;
+      -webkit-font-smoothing: antialiased;
+      text-rendering: optimizeLegibility;
+    }
+
+    img, svg { display: block; max-width: 100%; }
+
+    a { color: var(--harbor); text-underline-offset: 3px; }
+    a:hover { color: var(--harbor-deep); }
+
+    :focus-visible {
+      outline: 3px solid var(--harbor);
+      outline-offset: 3px;
+      border-radius: 2px;
+    }
+
+    code, pre { font-family: var(--font-mono); }
+
+    .wrap {
+      width: 100%;
+      max-width: var(--wrap);
+      margin-inline: auto;
+      padding-inline: var(--gutter);
+    }
+
+    .skip-link {
+      position: absolute;
+      left: var(--gutter);
+      top: -100px;
+      z-index: 10;
+      padding: 10px 16px;
+      background: var(--ink);
+      color: #fff;
+      border-radius: var(--radius-sm);
+      text-decoration: none;
+    }
+    .skip-link:focus { top: 12px; color: #fff; }
+
+    /* ---------- Header ---------- */
+    .site-header { border-bottom: 1px solid var(--rule); }
+    .site-header .wrap {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      min-height: 68px;
+    }
+
+    .brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      color: var(--ink);
+      text-decoration: none;
+      font-weight: 700;
+      font-size: 1.125rem;
+      font-variation-settings: "wdth" 115;
+      letter-spacing: -0.01em;
+    }
+    .brand:hover { color: var(--ink); }
+    .brand svg { width: 28px; height: 28px; flex: none; }
+
+    .site-nav ul {
+      display: flex;
+      gap: clamp(14px, 3vw, 32px);
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+    .site-nav a {
+      color: var(--slate);
+      text-decoration: none;
+      font-size: 0.9375rem;
+      font-weight: 500;
+      padding-block: 6px;
+      border-bottom: 2px solid transparent;
+      transition: color .2s var(--ease), border-color .2s var(--ease);
+    }
+    .site-nav a:hover { color: var(--ink); border-bottom-color: var(--signal); }
+
+    /* ---------- Hero ---------- */
+    .hero { padding-block: clamp(56px, 9vw, 112px) clamp(56px, 8vw, 96px); }
+    .hero .wrap {
+      display: grid;
+      grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+      gap: clamp(40px, 6vw, 80px);
+      align-items: center;
+    }
+
+    .hero h1 {
+      margin: 0 0 24px;
+      font-size: clamp(2.5rem, 1.35rem + 4.6vw, 4.75rem);
+      line-height: 0.98;
+      font-weight: 800;
+      font-variation-settings: "wdth" 118;
+      letter-spacing: -0.035em;
+      text-wrap: balance;
+    }
+
+    .hero-lede {
+      max-width: 50ch;
+      margin: 0 0 36px;
+      color: var(--slate);
+      font-size: clamp(1.0625rem, 1rem + .35vw, 1.25rem);
+      line-height: 1.55;
+    }
+
+    .actions { display: flex; flex-wrap: wrap; gap: 12px; }
+
+    .button {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      min-height: 48px;
+      padding: 12px 22px;
+      border-radius: var(--radius-sm);
+      border: 1.5px solid var(--harbor);
+      font-weight: 600;
+      font-size: 1rem;
+      text-decoration: none;
+      transition: background-color .2s var(--ease), color .2s var(--ease), transform .2s var(--ease);
+    }
+    .button svg { width: 18px; height: 18px; transition: transform .2s var(--ease); }
+    .button-primary { background: var(--harbor); color: #fff; }
+    .button-primary:hover { background: var(--harbor-deep); border-color: var(--harbor-deep); color: #fff; }
+    .button-primary:hover svg { transform: translateY(2px); }
+    .button-secondary { background: transparent; color: var(--harbor); }
+    .button-secondary:hover { background: var(--harbor-tint); color: var(--harbor-deep); }
+
+    /* Live request panel */
+    .live {
+      background: var(--surface);
+      border: 1px solid var(--rule);
+      border-radius: var(--radius-md);
+      box-shadow: 0 1px 0 var(--rule), 0 18px 40px -28px rgba(24, 33, 43, .35);
+      overflow: hidden;
+    }
+    .live-head {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--rule);
+    }
+    .live-dot {
+      position: relative;
+      width: 10px;
+      height: 10px;
+      flex: none;
+      border-radius: 50%;
+      background: var(--rule);
+    }
+    .live[data-state="served"] .live-dot { background: var(--signal); }
+    .live[data-state="served"] .live-dot::after {
+      content: "";
+      position: absolute;
+      inset: -4px;
+      border-radius: 50%;
+      border: 2px solid var(--signal);
+      opacity: 0;
+      animation: ping 2.4s var(--ease) infinite;
+    }
+    .live-title { margin: 0; font-size: 0.9375rem; font-weight: 600; }
+    .live-status { margin: 0; color: var(--slate); font-size: 0.875rem; }
+
+    .live dl { margin: 0; padding: 6px 20px 14px; }
+    .live-row {
+      display: grid;
+      grid-template-columns: 7.5rem minmax(0, 1fr);
+      gap: 12px;
+      padding: 11px 0;
+      border-bottom: 1px dashed var(--rule);
+    }
+    .live-row:last-child { border-bottom: 0; }
+    .live dt { color: var(--slate); font-size: 0.875rem; }
+    .live dd {
+      margin: 0;
+      font-family: var(--font-mono);
+      font-size: 0.875rem;
+      overflow-wrap: anywhere;
+    }
+    .live-note {
+      margin: 0;
+      padding: 12px 20px;
+      background: var(--paper);
+      border-top: 1px solid var(--rule);
+      color: var(--slate);
+      font-size: 0.8125rem;
+    }
+
+    /* ---------- Sections ---------- */
+    .section { padding-block: clamp(64px, 9vw, 112px); }
+    .section-rule { border-top: 1px solid var(--rule); }
+
+    .section-head { max-width: 640px; margin-bottom: clamp(36px, 5vw, 56px); }
+    .section-head h2 {
+      margin: 0 0 12px;
+      font-size: clamp(1.75rem, 1.2rem + 2.1vw, 2.75rem);
+      line-height: 1.08;
+      font-weight: 750;
+      font-variation-settings: "wdth" 112;
+      letter-spacing: -0.025em;
+      text-wrap: balance;
+    }
+    .section-head p { margin: 0; color: var(--slate); max-width: 58ch; }
+
+    /* ---------- Pipeline ---------- */
+    .pipeline { position: relative; }
+
+    .pipeline-track {
+      position: absolute;
+      left: 12.5%;
+      right: 12.5%;
+      top: 19px;
+      height: 2px;
+      background: repeating-linear-gradient(90deg, var(--rule) 0 8px, transparent 8px 14px);
+    }
+
+    .pipeline-cargo {
+      position: absolute;
+      top: -34px;
+      left: 87.5%;
+      width: 40px;
+      height: 24px;
+      margin-left: -20px;
+      border-radius: 3px;
+      background:
+        repeating-linear-gradient(90deg, rgba(24, 33, 43, .22) 0 1.5px, transparent 1.5px 7px) 4px 4px / calc(100% - 8px) calc(100% - 8px) no-repeat,
+        var(--signal);
+      box-shadow: 0 2px 0 rgba(24, 33, 43, .25);
+      z-index: 2;
+    }
+
+    .stations {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 24px;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+      counter-reset: station;
+    }
+
+    .station { position: relative; text-align: center; counter-increment: station; }
+
+    .station-marker {
+      position: relative;
+      z-index: 1;
+      display: grid;
+      place-items: center;
+      width: 40px;
+      height: 40px;
+      margin: 0 auto 22px;
+      border-radius: 50%;
+      background: var(--ink);
+      color: #fff;
+      font-weight: 700;
+      font-size: 0.9375rem;
+      box-shadow: 0 0 0 6px var(--paper);
+    }
+    .station-marker::before { content: counter(station); }
+
+    .station h3 {
+      margin: 0 0 8px;
+      font-size: 1.25rem;
+      font-weight: 700;
+      font-variation-settings: "wdth" 108;
+      letter-spacing: -0.01em;
+    }
+    .station p {
+      margin: 0 auto 16px;
+      max-width: 26ch;
+      color: var(--slate);
+      font-size: 0.9375rem;
+      line-height: 1.5;
+    }
+    .station code {
+      display: inline-block;
+      max-width: 100%;
+      padding: 6px 10px;
+      background: var(--surface);
+      border: 1px solid var(--rule);
+      border-radius: var(--radius-sm);
+      font-size: 0.8125rem;
+      color: var(--ink);
+      overflow-wrap: anywhere;
+    }
+
+    /* Animation states. Without JavaScript, everything shows in its final state. */
+    .js .pipeline:not(.is-running) .station-marker { background: var(--surface); color: var(--slate); box-shadow: 0 0 0 6px var(--paper), inset 0 0 0 1.5px var(--rule); }
+    .js .pipeline:not(.is-running) .pipeline-cargo { left: 12.5%; }
+
+    .js .pipeline.is-running .pipeline-cargo { animation: cargo-run 3.6s var(--ease) both; }
+    .js .pipeline.is-running .station-marker { animation: station-on .45s var(--ease) both; }
+    .js .pipeline.is-running .station:nth-child(1) .station-marker { animation-delay: .05s; }
+    .js .pipeline.is-running .station:nth-child(2) .station-marker { animation-delay: 1.1s; }
+    .js .pipeline.is-running .station:nth-child(3) .station-marker { animation-delay: 2.15s; }
+    .js .pipeline.is-running .station:nth-child(4) .station-marker { animation-delay: 3.2s; }
+
+    @keyframes cargo-run {
+      0%, 8%   { left: 12.5%; }
+      30%, 38% { left: 37.5%; }
+      60%, 68% { left: 62.5%; }
+      90%, 100% { left: 87.5%; }
+    }
+    @keyframes station-on {
+      from { background: var(--surface); color: var(--slate); box-shadow: 0 0 0 6px var(--paper), inset 0 0 0 1.5px var(--rule); }
+      to   { background: var(--ink); color: #fff; box-shadow: 0 0 0 6px var(--paper), inset 0 0 0 0 var(--rule); }
+    }
+    @keyframes ping {
+      0%   { transform: scale(.6); opacity: .7; }
+      80%, 100% { transform: scale(1.6); opacity: 0; }
+    }
+
+    /* ---------- Stack cards ---------- */
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 20px;
+    }
+
+    .card {
+      display: flex;
+      flex-direction: column;
+      padding: 28px;
+      background: var(--surface);
+      border: 1px solid var(--rule);
+      border-radius: var(--radius-md);
+      transition: border-color .25s var(--ease), transform .25s var(--ease), box-shadow .25s var(--ease);
+    }
+    .card:hover {
+      border-color: var(--harbor);
+      transform: translateY(-3px);
+      box-shadow: 0 16px 32px -24px rgba(14, 90, 115, .45);
+    }
+
+    .card-icon {
+      display: grid;
+      place-items: center;
+      width: 48px;
+      height: 48px;
+      margin-bottom: 22px;
+      border-radius: var(--radius-sm);
+      background: var(--harbor-tint);
+      color: var(--harbor);
+    }
+    .card-icon svg { width: 26px; height: 26px; }
+
+    .card h3 {
+      margin: 0 0 10px;
+      font-size: 1.375rem;
+      font-weight: 700;
+      font-variation-settings: "wdth" 110;
+      letter-spacing: -0.015em;
+    }
+    .card > p { margin: 0 0 22px; color: var(--slate); }
+
+    .card ul {
+      margin: auto 0 0;
+      padding: 18px 0 0;
+      list-style: none;
+      border-top: 1px solid var(--rule);
+      font-size: 0.9375rem;
+    }
+    .card li {
+      position: relative;
+      padding-left: 20px;
+      margin-bottom: 8px;
+    }
+    .card li:last-child { margin-bottom: 0; }
+    .card li::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      top: .62em;
+      width: 9px;
+      height: 6px;
+      border-radius: 1px;
+      background: var(--signal);
+    }
+
+    /* ---------- Under the hood (dark band) ---------- */
+    .hood {
+      background: var(--night);
+      color: var(--night-text);
+    }
+    .hood .section-head h2 { color: #fff; }
+    .hood .section-head p { color: var(--night-text); }
+    .hood a { color: #9FD3E3; }
+
+    .hood-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr);
+      gap: clamp(32px, 5vw, 64px);
+      align-items: start;
+    }
+
+    .explain h3 {
+      margin: 0 0 6px;
+      color: #fff;
+      font-size: 1.125rem;
+      font-weight: 650;
+      font-variation-settings: "wdth" 106;
+    }
+    .explain p { margin: 0 0 26px; max-width: 54ch; }
+    .explain p:last-child { margin-bottom: 0; }
+    .explain code {
+      padding: 1px 6px;
+      border-radius: 3px;
+      background: var(--night-raised);
+      color: #fff;
+      font-size: .875em;
+      overflow-wrap: anywhere;
+    }
+
+    .codeblock {
+      margin: 0;
+      border: 1px solid var(--night-rule);
+      border-radius: var(--radius-md);
+      background: var(--night-raised);
+      overflow: hidden;
+    }
+    .codeblock figcaption {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 18px;
+      border-bottom: 1px solid var(--night-rule);
+      font-size: 0.875rem;
+      color: var(--night-text);
+    }
+    .codeblock figcaption strong { color: #fff; font-weight: 600; }
+    .codeblock pre {
+      margin: 0;
+      padding: 18px;
+      overflow-x: auto;
+      font-size: 0.875rem;
+      line-height: 1.7;
+      color: #E6ECF1;
+    }
+    .tok-key { color: #F0B323; }
+    .tok-com { color: #8794A3; }
+
+    .portmap {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      margin: 24px 0 0;
+      padding: 0;
+      list-style: none;
+      border: 1px solid var(--night-rule);
+      border-radius: var(--radius-md);
+      overflow: hidden;
+    }
+    .portmap li {
+      position: relative;
+      padding: 16px 14px 16px 18px;
+      border-left: 1px solid var(--night-rule);
+    }
+    .portmap li:first-child { border-left: 0; }
+    .portmap li + li::before {
+      content: "";
+      position: absolute;
+      left: -6px;
+      top: 50%;
+      width: 10px;
+      height: 10px;
+      margin-top: -5px;
+      background: var(--night);
+      border-top: 1px solid var(--night-rule);
+      border-right: 1px solid var(--night-rule);
+      transform: rotate(45deg);
+    }
+    .portmap span { display: block; font-size: 0.8125rem; color: var(--night-text); }
+    .portmap strong {
+      display: block;
+      margin-top: 2px;
+      color: #fff;
+      font-family: var(--font-mono);
+      font-size: 0.9375rem;
+      font-weight: 500;
+    }
+    .portmap li:nth-child(2) strong, .portmap li:nth-child(3) strong { color: var(--signal); }
+
+    /* ---------- Footer ---------- */
+    .site-footer { padding-block: 48px; border-top: 1px solid var(--rule); }
+    .site-footer .wrap {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      gap: 28px 48px;
+    }
+    .footer-about { max-width: 46ch; }
+    .footer-about p { margin: 12px 0 0; color: var(--slate); font-size: 0.9375rem; }
+    .site-footer nav ul {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px 28px;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+      font-size: 0.9375rem;
+    }
+    .site-footer nav a { color: var(--slate); text-decoration: none; }
+    .site-footer nav a:hover { color: var(--ink); text-decoration: underline; }
+    .footer-meta {
+      flex-basis: 100%;
+      margin: 0;
+      padding-top: 24px;
+      border-top: 1px solid var(--rule);
+      color: var(--slate);
+      font-size: 0.875rem;
+    }
+
+    /* ---------- Responsive ---------- */
+    @media (max-width: 960px) {
+      .hero .wrap { grid-template-columns: minmax(0, 1fr); }
+      .live { max-width: 560px; }
+      .cards { grid-template-columns: minmax(0, 1fr); max-width: 640px; }
+      .hood-grid { grid-template-columns: minmax(0, 1fr); }
+    }
+
+    @media (max-width: 860px) {
+      .pipeline-track, .pipeline-cargo { display: none; }
+      .stations { grid-template-columns: 1fr; gap: 0; }
+      .station {
+        display: grid;
+        grid-template-columns: 40px minmax(0, 1fr);
+        column-gap: 20px;
+        text-align: left;
+        padding-bottom: 32px;
+      }
+      .station:last-child { padding-bottom: 0; }
+      .station:not(:last-child)::after {
+        content: "";
+        position: absolute;
+        left: 19px;
+        top: 46px;
+        bottom: 6px;
+        width: 2px;
+        background: repeating-linear-gradient(180deg, var(--rule) 0 8px, transparent 8px 14px);
+      }
+      .station-marker { grid-row: span 3; margin: 0; }
+      .station h3 { margin-top: 6px; }
+      .station p { margin-inline: 0; max-width: 46ch; }
+      .station code { justify-self: start; }
+    }
+
+    @media (max-width: 640px) {
+      .site-nav { display: none; }
+      .actions .button { flex: 1 1 100%; justify-content: center; }
+      .live-row { grid-template-columns: 6.5rem minmax(0, 1fr); }
+      .portmap { grid-template-columns: 1fr 1fr; }
+      .portmap li:nth-child(3) { border-left: 0; }
+      .portmap li:nth-child(n+3) { border-top: 1px solid var(--night-rule); }
+      .portmap li:nth-child(3)::before { display: none; }
+      .card { padding: 24px; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      *, *::before, *::after {
+        animation-duration: .01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: .01ms !important;
+      }
+      .live[data-state="served"] .live-dot::after { display: none; }
+      .card:hover { transform: none; }
+    }
+  </style>
+</head>
+
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <header class="site-header">
+    <div class="wrap">
+      <a class="brand" href="#top" aria-label="DeployFlow home">
+        <svg viewBox="0 0 32 32" aria-hidden="true" focusable="false">
+          <rect x="3" y="9" width="26" height="15" rx="2" fill="#F0B323"/>
+          <path d="M9 12v9M14 12v9M19 12v9M24 12v9" stroke="#18212B" stroke-width="1.6" opacity=".45"/>
+        </svg>
+        DeployFlow
+      </a>
+      <nav class="site-nav" aria-label="Primary">
+        <ul>
+          <li><a href="#pipeline">Pipeline</a></li>
+          <li><a href="#stack">Stack</a></li>
+          <li><a href="#under-the-hood">Under the hood</a></li>
+        </ul>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main">
+    <section class="hero" id="top" aria-labelledby="hero-title">
+      <div class="wrap">
+        <div>
+          <h1 id="hero-title">Hello Tericsoft! This page is the deployment.</h1>
+          <p class="hero-lede">
+            DeployFlow is a static site packaged into an Nginx container and run on an AWS EC2 instance.
+            If you are reading it on port 8081, every step below worked.
+          </p>
+          <div class="actions">
+            <a class="button button-primary" href="#pipeline">
+              Walk through the pipeline
+              <svg viewBox="0 0 20 20" fill="none" aria-hidden="true" focusable="false"><path d="M10 4v12m0 0-5-5m5 5 5-5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </a>
+            <a class="button button-secondary" href="#under-the-hood">Read the Dockerfile</a>
+          </div>
+        </div>
+
+        <aside class="live" id="live" data-state="pending" aria-labelledby="live-title">
+          <div class="live-head">
+            <span class="live-dot" aria-hidden="true"></span>
+            <div>
+              <h2 class="live-title" id="live-title">This request</h2>
+              <p class="live-status" id="live-status">Reading connection details…</p>
+            </div>
+          </div>
+          <dl>
+            <div class="live-row"><dt>Address</dt><dd id="live-host">Not available</dd></div>
+            <div class="live-row"><dt>Port</dt><dd id="live-port">Not available</dd></div>
+            <div class="live-row"><dt>Web server</dt><dd id="live-server">Not available</dd></div>
+            <div class="live-row"><dt>Loaded at</dt><dd id="live-time">Not available</dd></div>
+          </dl>
+          <p class="live-note">Read by your browser from this page's own response.</p>
+        </aside>
+      </div>
+    </section>
+
+    <section class="section section-rule" id="pipeline" aria-labelledby="pipeline-title">
+      <div class="wrap">
+        <div class="section-head">
+          <h2 id="pipeline-title">From source code to your browser in four steps</h2>
+          <p>Each step hands one artifact to the next. The same image runs on a laptop and on EC2, so what you test locally is what ships.</p>
+        </div>
+
+        <div class="pipeline" id="pipeline-flow">
+          <div class="pipeline-track" aria-hidden="true"></div>
+          <div class="pipeline-cargo" aria-hidden="true"></div>
+          <ol class="stations">
+            <li class="station">
+              <span class="station-marker" aria-hidden="true"></span>
+              <h3>Source code</h3>
+              <p>The page and its Dockerfile live in a public GitHub repository.</p>
+              <code>git push origin main</code>
+            </li>
+            <li class="station">
+              <span class="station-marker" aria-hidden="true"></span>
+              <h3>Docker image</h3>
+              <p>Nginx on Alpine Linux plus this page, built into one portable image.</p>
+              <code>docker build -t deployflow .</code>
+            </li>
+            <li class="station">
+              <span class="station-marker" aria-hidden="true"></span>
+              <h3>AWS EC2</h3>
+              <p>The instance runs the container and maps host port 8081 to Nginx on port 8081.</p>
+              <code>docker run -d -p 8081:8081 deployflow</code>
+            </li>
+            <li class="station">
+              <span class="station-marker" aria-hidden="true"></span>
+              <h3>Browser</h3>
+              <p>Anyone can open the instance's public address on port 8081.</p>
+              <!-- <code>http://YOUR_PUBLIC_IP:8081</code> -->
+            </li>
+          </ol>
+        </div>
+      </div>
+    </section>
+
+    <section class="section section-rule" id="stack" aria-labelledby="stack-title">
+      <div class="wrap">
+        <div class="section-head">
+          <h2 id="stack-title">Three tools, each with one job</h2>
+          <p>No framework, no build step. A single HTML file, a short Dockerfile, and the infrastructure to run it.</p>
+        </div>
+
+        <div class="cards">
+          <article class="card">
+            <div class="card-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M12 2.8 20.5 7.5v9L12 21.2l-8.5-4.7v-9L12 2.8Z"/><path d="M3.5 7.5 12 12.2l8.5-4.7M12 12.2v9"/></svg>
+            </div>
+            <h3>Docker</h3>
+            <p>Packages the web server and the page into an image that runs the same way on any machine with Docker installed.</p>
+            <ul>
+              <li>Base image: <code>nginx:alpine</code></li>
+              <li>Health check confirms Nginx is answering</li>
+            </ul>
+          </article>
+
+          <article class="card">
+            <div class="card-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="7" rx="1.5"/><rect x="3" y="13" width="18" height="7" rx="1.5"/><path d="M7 7.5h.01M7 16.5h.01M11 7.5h6M11 16.5h6"/></svg>
+            </div>
+            <h3>AWS EC2</h3>
+            <p>A small virtual server in the cloud with a public IP address. It runs Docker and keeps the container online.</p>
+            <ul>
+              <li>Security group opens TCP 8081 to everyone</li>
+              <li>SSH limited to a single IP address</li>
+            </ul>
+          </article>
+
+          <article class="card">
+            <div class="card-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="5.5" r="2.2"/><circle cx="6" cy="18.5" r="2.2"/><circle cx="18" cy="8.5" r="2.2"/><path d="M6 7.7v8.6M18 10.7c0 4-6 3.2-11 6"/></svg>
+            </div>
+            <h3>GitHub</h3>
+            <p>Holds the source in a public repository. The server clones it, so every deployment starts from a known commit.</p>
+            <ul>
+              <li>Code and Dockerfile versioned together</li>
+              <li>Redeploy with <code>git pull</code> and a rebuild</li>
+            </ul>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section hood" id="under-the-hood" aria-labelledby="hood-title">
+      <div class="wrap">
+        <div class="section-head">
+          <h2 id="hood-title">What actually runs on the server</h2>
+          <p>One container, one process, one open port. Here is how a request reaches this page.</p>
+        </div>
+
+        <div class="hood-grid">
+          <div class="explain">
+            <h3>The image</h3>
+            <p>Docker starts from the official <code>nginx:alpine</code> image, which is small because Alpine Linux is small. The build copies <code>app/index.html</code> into <code>/usr/share/nginx/html</code>, the folder Nginx serves. It also swaps in a short Nginx config that listens on port 8081, and <code>nginx -t</code> checks that config during the build, so a mistake fails the build instead of the server.</p>
+
+            <h3>The port mapping</h3>
+            <p>Inside the container Nginx listens on port 8081. Running with <code>-p 8081:8081</code> tells Docker to forward port 8081 on the EC2 host to the same port in the container. The security group allows inbound TCP 8081, so the request can reach the host at all.</p>
+
+            <h3>Staying up</h3>
+            <p>The container runs detached with <code>--restart unless-stopped</code>, so it comes back after a crash or a reboot of the instance. The health check lets <code>docker ps</code> show whether Nginx is actually answering, not just whether the process exists.</p>
+          </div>
+
+          <div>
+            <figure class="codeblock">
+              <figcaption><strong>Dockerfile</strong><span>core instructions</span></figcaption>
+<pre tabindex="0" aria-label="Dockerfile contents"><code><span class="tok-key">FROM</span> nginx:alpine
+
+<span class="tok-key">COPY</span> nginx/default.conf /etc/nginx/conf.d/default.conf
+<span class="tok-key">COPY</span> app/index.html /usr/share/nginx/html/index.html
+<span class="tok-key">RUN</span> nginx -t
+
+<span class="tok-key">EXPOSE</span> 8081
+
+<span class="tok-key">HEALTHCHECK</span> --interval=30s --timeout=3s \
+  --start-period=5s --retries=3 \
+  <span class="tok-key">CMD</span> ["wget", "-q", "-O", "/dev/null", \
+       "http://127.0.0.1:8081/"]</code></pre>
+            </figure>
+
+            <ol class="portmap" aria-label="Path of a request">
+              <li><span>Your browser</span><strong>:8081</strong></li>
+              <li><span>Security group</span><strong>TCP 8081</strong></li>
+              <li><span>Docker</span><strong>8081:8081</strong></li>
+              <li><span>Nginx on 8081</span><strong>index.html</strong></li>
+            </ol>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+      <div class="footer-about">
+        <a class="brand" href="#top">
+          <svg viewBox="0 0 32 32" aria-hidden="true" focusable="false">
+            <rect x="3" y="9" width="26" height="15" rx="2" fill="#F0B323"/>
+            <path d="M9 12v9M14 12v9M19 12v9M24 12v9" stroke="#18212B" stroke-width="1.6" opacity=".45"/>
+          </svg>
+          DeployFlow
+        </a>
+        <p>A static site served by Nginx in a Docker container on AWS EC2. Built for the Tericsoft DevOps task.</p>
+      </div>
+      <nav aria-label="Footer">
+        <ul>
+          <li><a href="#pipeline">Pipeline</a></li>
+          <li><a href="#stack">Stack</a></li>
+          <li><a href="#under-the-hood">Under the hood</a></li>
+          <li><a href="#top">Back to top</a></li>
+        </ul>
+      </nav>
+      <p class="footer-meta">HTML and CSS with a few lines of JavaScript. No frameworks, no tracking, no build step.</p>
+    </div>
+  </footer>
+
+  <script>
+    (function () {
+      var root = document.documentElement;
+      root.classList.add("js");
+
+      // Live request details, read from the browser and the response headers.
+      var panel = document.getElementById("live");
+      var setText = function (id, value) {
+        var el = document.getElementById(id);
+        if (el) el.textContent = value;
+      };
+
+      setText("live-time", new Date().toLocaleString());
+
+      if (location.protocol === "http:" || location.protocol === "https:") {
+        var defaultPort = location.protocol === "https:" ? "443" : "80";
+        setText("live-host", location.hostname);
+        setText("live-port", location.port || defaultPort + " (default)");
+
+        fetch(location.pathname, { method: "HEAD", cache: "no-store" })
+          .then(function (res) {
+            setText("live-server", res.headers.get("server") || "Not reported");
+            panel.setAttribute("data-state", "served");
+            setText("live-status", "Served over " + location.protocol.replace(":", "").toUpperCase());
+          })
+          .catch(function () {
+            setText("live-server", "Not reported");
+            panel.setAttribute("data-state", "served");
+            setText("live-status", "Served over " + location.protocol.replace(":", "").toUpperCase());
+          });
+      } else {
+        setText("live-host", "Local file");
+        setText("live-port", "None");
+        setText("live-server", "None");
+        setText("live-status", "Opened from disk. Run the container to see live details.");
+      }
+
+      // Play the pipeline animation once, when it scrolls into view.
+      var flow = document.getElementById("pipeline-flow");
+      var reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      var start = function () { flow.classList.add("is-running"); };
+
+      if (reduce || !("IntersectionObserver" in window)) {
+        start();
+      } else {
+        var io = new IntersectionObserver(function (entries) {
+          entries.forEach(function (entry) {
+            if (entry.isIntersecting) { start(); io.disconnect(); }
+          });
+        }, { threshold: 0.45 });
+        io.observe(flow);
+      }
+    })();
+  </script>
+</body>
+</html>

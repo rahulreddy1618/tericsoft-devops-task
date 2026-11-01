@@ -1,0 +1,14 @@
+# Keep the build context small: only app/ is needed to build the image.
+.git
+.gitignore
+.dockerignore
+README.md
+*.md
+*.zip
+*.pem
+.env
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
